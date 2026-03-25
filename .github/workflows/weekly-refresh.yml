@@ -1,0 +1,46 @@
+name: Weekly GA4 Dashboard Refresh
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # Every Monday at 7:00 AM UTC
+  workflow_dispatch:        # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write           # Needed to commit the rebuilt HTML back
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-analytics-data
+
+      - name: Build dashboard
+        env:
+          CI: "true"
+          GA4_CREDENTIALS_JSON: ${{ secrets.GA4_CREDENTIALS }}
+          GA4_PROPERTY_ID: "368188880"
+          GA4_OUTPUT_FILE: "visme-ga4-dashboard.html"
+        run: python build_dashboard.py
+
+      - name: Commit & push if data changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add visme-ga4-dashboard.html
+          if git diff --staged --quiet; then
+            echo "No data changes — skipping commit."
+          else
+            git commit -m "chore: weekly GA4 refresh $(date '+%Y-%m-%d')"
+            git push
+          fi
